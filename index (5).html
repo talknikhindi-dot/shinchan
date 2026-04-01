@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SHIN-CHAN: SMART RUN (LOUD SOUND)</title>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background: #000; font-family: Arial, sans-serif; }
+        #game-container { position: relative; width: 100vw; height: 100vh; background: #87CEEB; }
+        canvas { display: block; width: 100%; height: 100%; }
+        .ui { position: absolute; top: 10px; width: 100%; display: flex; justify-content: space-around; pointer-events: none; z-index: 10; }
+        .box { background: rgba(255,255,255,0.9); padding: 8px 20px; border-radius: 12px; border: 2px solid #333; text-align: center; }
+        .label { font-size: 11px; color: #ff007f; font-weight: bold; }
+        .val { font-size: 22px; font-weight: bold; }
+        #overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; justify-content: center; align-items: center; color: #fff; z-index: 100; text-align: center; }
+        .btn { background: #ff007f; color: #fff; padding: 15px 50px; border-radius: 40px; border: none; font-size: 24px; font-weight: bold; cursor: pointer; box-shadow: 0 0 20px rgba(255,0,127,0.5); }
+        h1 { font-size: 45px; color: #ffd700; margin: 0; text-shadow: 0 0 15px #ffd700; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div class="ui">
+        <div class="box"><div class="label">SCORE</div><div id="scr" class="val">0</div></div>
+        <div class="box"><div class="label">LIVES</div><div id="lvs" class="val">❤️❤️❤️</div></div>
+    </div>
+    <canvas id="c"></canvas>
+    <div id="overlay">
+        <h1>SHIN-CHAN</h1>
+        <p>SMART RUN EDITION</p>
+        <div id="final-scr-text" style="display:none; font-size: 25px; margin-bottom: 20px;">Score: <span id="f-scr">0</span></div>
+        <button id="start-btn" class="btn">PLAY WITH SOUND</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('c'), ctx = canvas.getContext('2d');
+    const container = document.getElementById('game-container'), overlay = document.getElementById('overlay');
+    let score = 0, active = false, lives = 3;
+
+    // AUDIO CONTEXT - मोठा आवाजासाठी सेटिंग
+    let audioCtx;
+    function playSound(freq, type, duration, volume = 0.2) {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + duration);
+    }
+
+    function resize() { canvas.width = container.clientWidth; canvas.height = container.clientHeight; }
+    window.onresize = resize; resize();
+
+    const player = { x: 0, y: 0, w: 60, h: 95, tx: 0 };
+    let items = [];
+
+    function drawShinChan(x, y) {
+        ctx.fillStyle = "#ff4d4d"; ctx.fillRect(x+10, y+35, 40, 40); // Shirt
+        ctx.fillStyle = "#ffff00"; ctx.fillRect(x+10, y+75, 40, 10); // Shorts
+        ctx.fillStyle = "#ffe0bd"; ctx.beginPath(); ctx.arc(x+30, y+20, 24, 0, 7); ctx.fill(); // Face
+        ctx.fillStyle = "#000"; ctx.fillRect(x+15, y+8, 10, 4); ctx.fillRect(x+35, y+8, 10, 4); // Brows
+        ctx.beginPath(); ctx.arc(x+22, y+18, 3.5, 0, 7); ctx.fill(); // Left Eye
+        ctx.beginPath(); ctx.arc(x+38, y+18, 3.5, 0, 7); ctx.fill(); // Right Eye
+        ctx.fillStyle = "#fff"; ctx.fillRect(x+15, y+85, 10, 8); ctx.fillRect(x+35, y+85, 10, 8); // Socks
+        ctx.fillStyle = "#333"; ctx.fillRect(x+10, y+93, 15, 7); ctx.fillRect(x+35, y+93, 15, 7); // Shoes
+    }
+
+    container.onmousemove = (e) => { if(active) player.tx = e.clientX - player.w/2; };
+    container.ontouchmove = (e) => { if(active) { player.tx = e.touches[0].clientX - player.w/2; e.preventDefault(); } };
+
+    function spawn() {
+        if(!active) return;
+        items.push({ x: Math.random()*(canvas.width-30)+15, y: -30, v: 5+(score/300) });
+        setTimeout(spawn, Math.max(300, 1000-(score/10)));
+    }
+
+    function loop() {
+        ctx.clearRect(0,0, canvas.width, canvas.height);
+        if(active) {
+            player.x += (player.tx - player.x) * 0.2;
+            drawShinChan(player.x, player.y);
+            items.forEach((it, i) => {
+                it.y += it.v;
+                ctx.fillStyle = "white"; ctx.shadowBlur = 10; ctx.shadowColor = "white";
+                ctx.beginPath(); ctx.arc(it.x, it.y, 14, 0, 7); ctx.fill();
+                ctx.shadowBlur = 0;
+
+                if(it.y > player.y && it.y < player.y+player.h && it.x > player.x && it.x < player.x+player.w) {
+                    score += 10; document.getElementById('scr').innerText = score;
+                    playSound(880, 'sine', 0.15, 0.3); // मोठा कॅच साउंड
+                    items.splice(i, 1);
+                } else if(it.y > canvas.height) {
+                    items.splice(i, 1); lives--; 
+                    let h = ""; for(let j=0; j<3; j++) h += j<lives ? "❤️" : "🖤";
+                    document.getElementById('lvs').innerText = h;
+                    playSound(220, 'square', 0.3, 0.2); // मोठा मिस साउंड
+                }
+            });
+            if(lives <= 0) {
+                active = false; playSound(110, 'sawtooth', 0.6, 0.4); // गेम ओव्हर साउंड
+                document.getElementById('f-scr').innerText = score;
+                document.getElementById('final-scr-text').style.display = 'block';
+                overlay.style.display = 'flex';
+            }
+        }
+        requestAnimationFrame(loop);
+    }
+
+    document.getElementById('start-btn').onclick = () => {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        score = 0; lives = 3; items = []; active = true;
+        player.y = canvas.height - 115; player.x = canvas.width/2-30; player.tx = player.x;
+        document.getElementById('scr').innerText = "0";
+        document.getElementById('lvs').innerText = "❤️❤️❤️";
+        overlay.style.display = 'none'; spawn();
+    };
+    loop();
+</script>
+</body>
+</html>
